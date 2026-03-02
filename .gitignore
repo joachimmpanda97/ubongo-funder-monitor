@@ -1,0 +1,23 @@
+# Environment — never commit secrets
+.env
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+/var/log/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
