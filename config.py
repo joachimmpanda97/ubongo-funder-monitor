@@ -42,6 +42,22 @@ CRAWLER_BATCH_SIZE = 10          # concurrent browser tabs per batch
 CRAWLER_PAGE_TIMEOUT_MS = 30000  # 30 seconds per page load
 CONTENT_MAX_CHARS = 24000        # ~6000 tokens; truncate before sending to Claude
 
+# Paths to probe on each funder's domain in addition to the homepage.
+# The crawler checks each path; any that return a real page are crawled.
+# Ordered by how likely they are to contain grant opportunities.
+CRAWLER_PROBE_PATHS = [
+    "/grants",
+    "/funding",
+    "/opportunities",
+    "/open-calls",
+    "/apply",
+    "/rfp",
+    "/calls",
+    "/news",
+    "/announcements",
+    "/blog",
+]
+
 # Claude model selection
 CLAUDE_FAST_MODEL = "claude-haiku-4-5-20251001"   # used for all opportunity detection
 CLAUDE_CAREFUL_MODEL = "claude-sonnet-4-6"          # escalation for low-confidence cases

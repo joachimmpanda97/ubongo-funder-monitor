@@ -1,9 +1,13 @@
 # Ubongo Funder Monitor — cron schedule
 # All times UTC. East Africa Time = UTC+3.
-# Weekly crawl: Sunday 23:00 UTC = Monday 02:00 EAT
-# Results will be emailed by ~Monday 08:00 EAT once processed.
 
-0 23 * * 0 cd /opt/funder-monitor && venv/bin/python -m scheduler.weekly_run >> /var/log/funder-monitor.log 2>&1
+# Sunday 23:00 UTC (Monday 02:00 EAT) — crawl + change detection + Claude AI filter
+# Saves any new opportunities to the DB but does NOT send email yet.
+0 23 * * 0 cd /opt/funder-monitor && venv/bin/python -m scheduler.weekly_run --mode crawl >> /var/log/funder-monitor.log 2>&1
 
-# Watchdog: runs every Monday 07:00 UTC — alerts team if no successful run in 8 days
+# Monday 05:00 UTC (Monday 08:00 EAT) — send weekly email digest to the team
+# Picks up all unnotified opportunities saved by the crawl job above.
+0 5 * * 1 cd /opt/funder-monitor && venv/bin/python -m scheduler.weekly_run --mode email >> /var/log/funder-monitor.log 2>&1
+
+# Watchdog: runs every Monday 07:00 UTC — alerts team if system hasn't run in 8 days
 0 7 * * 1 cd /opt/funder-monitor && venv/bin/python -m scheduler.watchdog >> /var/log/funder-monitor.log 2>&1

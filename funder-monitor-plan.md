@@ -16,10 +16,10 @@ alerts@ubongo.org.
 | 0 | Project setup (repo, env, deps, DB models) | ✅ Done |
 | 1 | Segal directory scraper | ✅ Done — 780 scraped, filtering verified |
 | 2 | Database schema | ✅ Done — 4 tables defined in SQLAlchemy |
-| 3 | Weekly site crawler | 🔲 Next |
-| 4 | Change detection + Claude AI filter | 🔲 Pending |
-| 5 | Email digest (AWS SES) | 🔲 Pending |
-| 6 | AWS EC2 deployment + cron | 🔲 Pending |
+| 3 | Weekly site crawler | ✅ Done — Playwright async crawler, link discovery, path probing |
+| 4 | Change detection + Claude AI filter | ✅ Done — SHA-256 diff + haiku/sonnet escalation |
+| 5 | Email digest (AWS SES) | ✅ Done — HTML digest + all-clear email via boto3 |
+| 6 | AWS EC2 deployment + cron | ✅ Done — split schedule: crawl Sun 23:00 UTC, email Mon 05:00 UTC |
 | 7 | Monitoring & maintenance | 🔲 Pending |
 
 ## Table of Contents
@@ -517,5 +517,5 @@ None. All decisions finalised. Ready to build.
 
 ---
 
-*Last updated: 2026-03-02 — Phases 0, 1, 2 complete. Phase 3 next.*
+*Last updated: 2026-03-02 — Phases 0–6 complete. Phase 7 (monitoring) remaining.*
 *Author: Ubongo Development Team + Claude Code*
