@@ -281,9 +281,6 @@ def scrape_all(page: Page) -> list[RawFunder]:
                 "Check HEADER_ALIASES in the scraper if data is missing."
             )
 
-    # Try to increase rows-per-page to reduce the number of pages to click through
-    _set_large_page_size(page)
-
     all_funders: list[RawFunder] = []
     page_num = 1
 
