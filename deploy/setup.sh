@@ -3,7 +3,7 @@
 set -euo pipefail
 
 APP_DIR="/opt/funder-monitor"
-REPO_URL="https://github.com/YOUR_ORG/ubongo-funder-monitor.git"  # update before running
+REPO_URL="https://github.com/joachimmpanda97/ubongo-funder-monitor.git"
 
 echo "==> Updating system packages"
 apt-get update && apt-get upgrade -y
@@ -32,8 +32,8 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "==> Installing Playwright browser"
-playwright install chromium
-playwright install-deps chromium
+python -m playwright install chromium
+python -m playwright install-deps chromium
 
 echo "==> Copying .env (edit this before running the app)"
 cp .env.example .env
