@@ -14,6 +14,7 @@ Optional flags:
 """
 
 import argparse
+import csv
 import sys
 import time
 from dataclasses import dataclass, field
@@ -352,6 +353,35 @@ def save_to_db(funders: list[RawFunder], session: Session) -> dict[str, int]:
 
 
 # ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+
+def export_education_funders(output_path: str = "education_funders.csv") -> None:
+    """
+    Query the DB for all funders with an education focus and write them to CSV.
+    Includes both active funders (education + Africa) and education-only funders.
+    """
+    engine = create_engine(config.DATABASE_URL)
+    with Session(engine) as session:
+        funders = session.execute(select(Funder)).scalars().all()
+
+    education_funders = [
+        f for f in funders
+        if _matches_education(f.focus_areas or [])
+    ]
+    education_funders.sort(key=lambda f: f.name.lower())
+
+    with open(output_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["Name", "Website", "Also Covers Africa"])
+        for f in education_funders:
+            covers_africa = "Yes" if _matches_africa(f.geography or []) else "No"
+            writer.writerow([f.name, f.website_url or "", covers_africa])
+
+    print(f"Exported {len(education_funders)} education funders → {output_path}")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -418,10 +448,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape the Segal funder directory.")
     parser.add_argument("--dry-run", action="store_true", help="Print results, skip DB write")
     parser.add_argument("--debug", action="store_true", help="Show browser window")
+    parser.add_argument("--export", metavar="FILE", nargs="?", const="education_funders.csv",
+                        help="Export education funders from DB to CSV (no scraping). "
+                             "Default filename: education_funders.csv")
     args = parser.parse_args()
 
     try:
-        main(dry_run=args.dry_run, debug=args.debug)
+        if args.export:
+            export_education_funders(args.export)
+        else:
+            main(dry_run=args.dry_run, debug=args.debug)
     except Exception as e:
         print(f"\nError: {e}", file=sys.stderr)
         sys.exit(1)
