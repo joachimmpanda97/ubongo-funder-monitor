@@ -19,7 +19,7 @@ alerts@ubongo.org.
 | 3 | Weekly site crawler | ✅ Done — Playwright async crawler, link discovery, path probing |
 | 4 | Change detection + Claude AI filter | ✅ Done — SHA-256 diff + haiku/sonnet escalation |
 | 5 | Email digest (AWS SES) | ✅ Done — HTML digest + all-clear email via boto3 |
-| 6 | AWS EC2 deployment + cron | ✅ Done — split schedule: crawl Sun 23:00 UTC, email Mon 05:00 UTC |
+| 6 | AWS EC2 deployment + cron | ✅ Done — EC2 live, DB seeded (116 active funders), cron installed, SES verified |
 | 7 | Monitoring & maintenance | 🔲 Pending |
 
 ## Table of Contents
@@ -384,12 +384,28 @@ week with fresh intel.
 | Resource | Spec | Why |
 |---|---|---|
 | EC2 | t3.small (2 vCPU, 2GB RAM) | Cheapest instance that can run Playwright |
-| OS | Ubuntu 22.04 LTS | Stable, well-supported |
+| OS | Ubuntu **24.04** LTS (actual; 22.04 planned) | Stable, well-supported |
 | Storage | 20GB gp3 EBS | Plenty for Postgres + app |
-| PostgreSQL | Self-hosted on same EC2 | Simplest; can move to RDS later |
+| PostgreSQL | Self-hosted on same EC2 (v16 installed) | Simplest; can move to RDS later |
 | SES | Standard | Email sending |
 | Elastic IP | 1× | Stable IP for SES sending reputation |
 | Security Group | Inbound: SSH (22) only | Outbound: all (for crawling) |
+
+### 6.1a EC2 Deployment Status (2026-03-03)
+
+| Step | Status | Notes |
+|---|---|---|
+| EC2 instance provisioned | ✅ Done | t3.small, Ubuntu 24.04, eu-north-1 |
+| System packages installed | ✅ Done | Python 3.12, PostgreSQL 16, git, curl, build-essential |
+| PostgreSQL configured | ✅ Done | `funder_user` + `funder_monitor` DB created |
+| Repo cloned | ✅ Done | `/opt/funder-monitor` |
+| Python venv + pip deps | ✅ Done | All packages installed incl. playwright 1.58, anthropic 0.84 |
+| Playwright Chromium | ✅ Done | Browser + system deps installed |
+| `.env` configured | ✅ Done | DB URL, API keys, SES credentials set |
+| DB schema initialised | ✅ Done | All 4 tables created via `python -m db.init_db` |
+| Funder directory scrape | ✅ Done | 780 scraped → 116 active, 318 inactive, 346 skipped |
+| Cron job installed | ✅ Done | Sun 23:00 UTC crawl + Mon 05:00 UTC email + Mon 07:00 UTC watchdog |
+| SES verified + production | ✅ Done | Gmail sender verified for testing |
 
 ### 6.2 EC2 setup (`deploy/setup.sh`)
 
@@ -517,5 +533,5 @@ None. All decisions finalised. Ready to build.
 
 ---
 
-*Last updated: 2026-03-02 — Phases 0–6 complete. Phase 7 (monitoring) remaining.*
+*Last updated: 2026-03-03 — Phases 0–6 complete. System live on EC2 (eu-north-1). 116 funders being monitored. First automated run: Sunday 2026-03-08 at 23:00 UTC. Phase 7 (monitoring) remaining.*
 *Author: Ubongo Development Team + Claude Code*

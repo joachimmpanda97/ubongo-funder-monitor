@@ -1,0 +1,14 @@
+[Unit]
+Description=Ubongo Funder Monitor — Email Tracking Server
+After=network.target postgresql.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/funder-monitor
+EnvironmentFile=/opt/funder-monitor/.env
+ExecStart=/opt/funder-monitor/venv/bin/python -m tracker.app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

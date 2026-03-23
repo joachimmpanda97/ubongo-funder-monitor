@@ -40,14 +40,17 @@ def _format_deadline(d: date | None) -> str:
     return d.strftime("%B %d, %Y")
 
 
-def _build_html(opportunities: list[tuple[Opportunity, Funder]], week_str: str) -> str:
+def _build_html(opportunities: list[tuple[Opportunity, Funder]], week_str: str, notification_id: int | None = None) -> str:
     count = len(opportunities)
     subject_line = f"{count} New Funding {'Opportunity' if count == 1 else 'Opportunities'} Found"
 
     rows_html = ""
     for i, (opp, funder) in enumerate(opportunities, 1):
         deadline_str = _format_deadline(opp.deadline)
-        url = opp.source_url or funder.website_url or ""
+        if notification_id:
+            url = f"{config.TRACKER_BASE_URL}/track/click/{notification_id}/{opp.id}"
+        else:
+            url = opp.source_url or funder.website_url or ""
         rows_html += f"""
         <tr>
           <td style="padding:16px 0; border-bottom:1px solid #e5e7eb; vertical-align:top;">
@@ -113,6 +116,7 @@ def _build_html(opportunities: list[tuple[Opportunity, Funder]], week_str: str) 
                 Sent automatically by the Ubongo Funder Monitor.
                 To manage recipients, update the TEAM_EMAILS environment variable.
               </p>
+              {f'<img src="{config.TRACKER_BASE_URL}/track/open/{notification_id}" width="1" height="1" style="display:none;" />' if notification_id else ''}
             </td>
           </tr>
 
@@ -233,10 +237,8 @@ def send_digest(session: Session, dry_run: bool = False) -> dict:
             f"{'Opportunity' if len(opportunities) == 1 else 'Opportunities'} "
             f"— Week of {week_str}"
         )
-        html = _build_html(opportunities, week_str)
         plain = _build_plain(opportunities, week_str)
     else:
-        # Count funders checked this week for the all-clear email
         from sqlalchemy import func
         from db.models import PageSnapshot
         from datetime import timedelta
@@ -258,6 +260,19 @@ def send_digest(session: Session, dry_run: bool = False) -> dict:
         print(plain[:800])
         return {"sent": False, "opportunity_count": len(opportunities), "message_id": None}
 
+    # Save the log first so we have an ID for tracking URLs
+    log = NotificationLog(
+        sent_at=datetime.now(timezone.utc),
+        recipient_emails=config.TEAM_EMAILS,
+        opportunity_ids=opp_ids,
+    )
+    session.add(log)
+    session.flush()  # assigns log.id without committing
+
+    # Build HTML with notification ID for tracking
+    if opportunities:
+        html = _build_html(opportunities, week_str, notification_id=log.id)
+
     # Send
     message_id = _send_via_ses(subject, html, plain)
 
@@ -265,12 +280,6 @@ def send_digest(session: Session, dry_run: bool = False) -> dict:
     for opp, _ in opportunities:
         opp.notified = True
 
-    # Log the send
-    session.add(NotificationLog(
-        sent_at=datetime.now(timezone.utc),
-        recipient_emails=config.TEAM_EMAILS,
-        opportunity_ids=opp_ids,
-    ))
     session.commit()
 
     return {

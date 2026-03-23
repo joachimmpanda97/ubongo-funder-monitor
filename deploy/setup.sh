@@ -9,7 +9,7 @@ echo "==> Updating system packages"
 apt-get update && apt-get upgrade -y
 
 echo "==> Installing Python, PostgreSQL, and utilities"
-apt-get install -y python3.11 python3.11-venv python3-pip \
+apt-get install -y python3 python3-venv python3-pip \
     postgresql postgresql-contrib git curl
 
 echo "==> Setting up PostgreSQL"
@@ -26,7 +26,7 @@ git clone "$REPO_URL" "$APP_DIR"
 cd "$APP_DIR"
 
 echo "==> Creating Python virtual environment"
-python3.11 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt

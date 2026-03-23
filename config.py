@@ -13,6 +13,7 @@ AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 SES_SENDER_EMAIL = os.environ["SES_SENDER_EMAIL"]
 TEAM_EMAILS = [e.strip() for e in os.environ["TEAM_EMAILS"].split(",")]
+TRACKER_BASE_URL = os.environ.get("TRACKER_BASE_URL", "http://51.21.97.183:5000")
 
 # Funder directory filter criteria
 # Primary: exact sector match (as labelled in the Segal directory)
