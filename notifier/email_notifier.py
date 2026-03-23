@@ -4,21 +4,16 @@ Phase 5 — Email Notifier
 Fetches all unnotified opportunities from the database, builds an HTML +
 plain-text email digest, and sends it via AWS SES.
 
-Two email types:
-  - Opportunities digest  → when new opportunities were found this week
-  - All-clear status      → when no opportunities found (confirms system ran)
-
-After a successful send:
-  - Marks all included opportunities as notified=True
-  - Inserts a row in notification_log
+Sends one email per recipient so opens and clicks can be tracked individually.
 
 Usage (called by the weekly scheduler, or standalone for testing):
     python -m notifier.email_notifier --dry-run   # preview without sending
 """
 
 import argparse
+import base64
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -31,7 +26,7 @@ from db.models import Funder, NotificationLog, Opportunity
 
 
 # ---------------------------------------------------------------------------
-# Email content builders
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _format_deadline(d: date | None) -> str:
@@ -40,15 +35,29 @@ def _format_deadline(d: date | None) -> str:
     return d.strftime("%B %d, %Y")
 
 
-def _build_html(opportunities: list[tuple[Opportunity, Funder]], week_str: str, notification_id: int | None = None) -> str:
+def _encode_email(email: str) -> str:
+    return base64.urlsafe_b64encode(email.encode()).decode()
+
+
+# ---------------------------------------------------------------------------
+# Email content builders
+# ---------------------------------------------------------------------------
+
+def _build_html(
+    opportunities: list[tuple[Opportunity, Funder]],
+    week_str: str,
+    notification_id: int | None = None,
+    recipient_email: str | None = None,
+) -> str:
     count = len(opportunities)
     subject_line = f"{count} New Funding {'Opportunity' if count == 1 else 'Opportunities'} Found"
+    recipient_b64 = _encode_email(recipient_email) if recipient_email else ""
 
     rows_html = ""
     for i, (opp, funder) in enumerate(opportunities, 1):
         deadline_str = _format_deadline(opp.deadline)
-        if notification_id:
-            url = f"{config.TRACKER_BASE_URL}/track/click/{notification_id}/{opp.id}"
+        if notification_id and recipient_b64:
+            url = f"{config.TRACKER_BASE_URL}/track/click/{notification_id}/{opp.id}/{recipient_b64}"
         else:
             url = opp.source_url or funder.website_url or ""
         rows_html += f"""
@@ -75,6 +84,10 @@ def _build_html(opportunities: list[tuple[Opportunity, Funder]], week_str: str, 
             </a>
           </td>
         </tr>"""
+
+    pixel = ""
+    if notification_id and recipient_b64:
+        pixel = f'<img src="{config.TRACKER_BASE_URL}/track/open/{notification_id}/{recipient_b64}" width="1" height="1" style="display:none;" />'
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -116,7 +129,7 @@ def _build_html(opportunities: list[tuple[Opportunity, Funder]], week_str: str, 
                 Sent automatically by the Ubongo Funder Monitor.
                 To manage recipients, update the TEAM_EMAILS environment variable.
               </p>
-              {f'<img src="{config.TRACKER_BASE_URL}/track/open/{notification_id}" width="1" height="1" style="display:none;" />' if notification_id else ''}
+              {pixel}
             </td>
           </tr>
 
@@ -146,10 +159,7 @@ def _build_plain(opportunities: list[tuple[Opportunity, Funder]], week_str: str)
             f"   Link:     {opp.source_url or funder.website_url or ''}",
             "",
         ]
-    lines += [
-        "-" * 60,
-        "Sent by Ubongo Funder Monitor.",
-    ]
+    lines += ["-" * 60, "Sent by Ubongo Funder Monitor."]
     return "\n".join(lines)
 
 
@@ -185,12 +195,12 @@ def _build_all_clear_html(week_str: str, funders_checked: int) -> str:
 # SES sending
 # ---------------------------------------------------------------------------
 
-def _send_via_ses(subject: str, html_body: str, plain_body: str) -> str:
-    """Send email via AWS SES. Returns the SES MessageId."""
+def _send_via_ses(subject: str, html_body: str, plain_body: str, recipient: str) -> str:
+    """Send email to a single recipient via AWS SES. Returns the SES MessageId."""
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = config.SES_SENDER_EMAIL
-    msg["To"] = ", ".join(config.TEAM_EMAILS)
+    msg["To"] = recipient
     msg.attach(MIMEText(plain_body, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
@@ -203,7 +213,7 @@ def _send_via_ses(subject: str, html_body: str, plain_body: str) -> str:
 
     response = ses.send_raw_email(
         Source=config.SES_SENDER_EMAIL,
-        Destinations=config.TEAM_EMAILS,
+        Destinations=[recipient],
         RawMessage={"Data": msg.as_string()},
     )
     return response["MessageId"]
@@ -215,12 +225,11 @@ def _send_via_ses(subject: str, html_body: str, plain_body: str) -> str:
 
 def send_digest(session: Session, dry_run: bool = False) -> dict:
     """
-    Fetch unnotified opportunities, send the digest, update DB.
+    Fetch unnotified opportunities, send per-recipient emails, update DB.
     Returns a result dict with keys: sent, opportunity_count, message_id.
     """
     week_str = date.today().strftime("%B %d, %Y")
 
-    # Load unnotified opportunities with their funder
     rows = session.execute(
         select(Opportunity, Funder)
         .join(Funder, Opportunity.funder_id == Funder.id)
@@ -241,7 +250,6 @@ def send_digest(session: Session, dry_run: bool = False) -> dict:
     else:
         from sqlalchemy import func
         from db.models import PageSnapshot
-        from datetime import timedelta
         since = datetime.now(timezone.utc) - timedelta(days=8)
         funders_checked = session.scalar(
             select(func.count(func.distinct(PageSnapshot.funder_id)))
@@ -249,7 +257,6 @@ def send_digest(session: Session, dry_run: bool = False) -> dict:
         ) or 0
 
         subject = f"[Ubongo] All Clear — No New Opportunities — Week of {week_str}"
-        html = _build_all_clear_html(week_str, funders_checked)
         plain = f"Ubongo Funder Monitor — No new opportunities this week ({week_str})."
 
     if dry_run:
@@ -260,21 +267,23 @@ def send_digest(session: Session, dry_run: bool = False) -> dict:
         print(plain[:800])
         return {"sent": False, "opportunity_count": len(opportunities), "message_id": None}
 
-    # Save the log first so we have an ID for tracking URLs
+    # Save notification log first to get an ID for tracking URLs
     log = NotificationLog(
         sent_at=datetime.now(timezone.utc),
         recipient_emails=config.TEAM_EMAILS,
         opportunity_ids=opp_ids,
     )
     session.add(log)
-    session.flush()  # assigns log.id without committing
+    session.flush()
 
-    # Build HTML with notification ID for tracking
-    if opportunities:
-        html = _build_html(opportunities, week_str, notification_id=log.id)
-
-    # Send
-    message_id = _send_via_ses(subject, html, plain)
+    # Send one email per recipient with personalised tracking URLs
+    last_message_id = None
+    for recipient in config.TEAM_EMAILS:
+        if opportunities:
+            html = _build_html(opportunities, week_str, notification_id=log.id, recipient_email=recipient)
+        else:
+            html = _build_all_clear_html(week_str, funders_checked)
+        last_message_id = _send_via_ses(subject, html, plain, recipient)
 
     # Mark opportunities as notified
     for opp, _ in opportunities:
@@ -285,7 +294,7 @@ def send_digest(session: Session, dry_run: bool = False) -> dict:
     return {
         "sent": True,
         "opportunity_count": len(opportunities),
-        "message_id": message_id,
+        "message_id": last_message_id,
     }
 
 

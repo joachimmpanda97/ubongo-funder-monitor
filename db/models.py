@@ -97,6 +97,7 @@ class EmailOpen(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     notification_id: Mapped[int] = mapped_column(Integer, ForeignKey("notification_log.id"), nullable=False)
+    recipient_email: Mapped[str | None] = mapped_column(Text, nullable=True)
     opened_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -104,7 +105,7 @@ class EmailOpen(Base):
     notification: Mapped["NotificationLog"] = relationship(back_populates="opens")
 
     def __repr__(self) -> str:
-        return f"<EmailOpen id={self.id} notification_id={self.notification_id} opened_at={self.opened_at}>"
+        return f"<EmailOpen id={self.id} recipient={self.recipient_email} opened_at={self.opened_at}>"
 
 
 class EmailClick(Base):
@@ -113,9 +114,10 @@ class EmailClick(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     opportunity_id: Mapped[int] = mapped_column(Integer, ForeignKey("opportunities.id"), nullable=False)
     notification_id: Mapped[int] = mapped_column(Integer, ForeignKey("notification_log.id"), nullable=False)
+    recipient_email: Mapped[str | None] = mapped_column(Text, nullable=True)
     clicked_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def __repr__(self) -> str:
-        return f"<EmailClick id={self.id} opportunity_id={self.opportunity_id} clicked_at={self.clicked_at}>"
+        return f"<EmailClick id={self.id} recipient={self.recipient_email} opportunity_id={self.opportunity_id}>"
