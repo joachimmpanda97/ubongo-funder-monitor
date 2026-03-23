@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 import anthropic
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import config
@@ -58,8 +59,10 @@ Answer with this exact JSON structure:
   "summary": "2-3 sentence summary covering what the grant is for, who can \
 apply, and the deadline if known — or null",
   "deadline": "YYYY-MM-DD or null",
-  "direct_url": "direct URL to the opportunity if different from the page \
-URL above, or null"
+  "direct_url": "the specific URL of the grant or application page. Look for \
+links labelled 'Apply Now', 'Apply Here', 'Submit Application', 'Call for Proposals', \
+'Apply for a Grant', or similar. If the current page IS the opportunity page, return \
+the page URL above. Never return null — always return a URL."
 }}
 
 Return is_opportunity: true ONLY if there is a specific, actionable grant, \
@@ -236,11 +239,20 @@ def run_filter(
             summary.skipped_low_confidence += 1
             continue
 
-        if result.is_opportunity:
+        title = result.title or f"Opportunity at {changed.funder.name}"
+        already_exists = session.scalar(
+            select(Opportunity).where(
+                Opportunity.funder_id == changed.funder.id,
+                Opportunity.title == title,
+            )
+        )
+        if result.is_opportunity and (
+            result.deadline is None or result.deadline >= date.today()
+        ) and not already_exists:
             session.add(Opportunity(
                 funder_id=changed.funder.id,
                 snapshot_id=changed.snapshot.id,
-                title=result.title or f"Opportunity at {changed.funder.name}",
+                title=title,
                 summary=result.summary or "",
                 deadline=result.deadline,
                 source_url=result.direct_url or changed.snapshot.url,
